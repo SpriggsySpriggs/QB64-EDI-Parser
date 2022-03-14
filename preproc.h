@@ -1,0 +1,15 @@
+#define __VARIABLE_NAME(Variable) (#Variable)
+#define __FUNCTION_NAME() (__func__)
+#define __FUNCTION_NAME_FULL() (__PRETTY_FUNCTION__)
+#define __SRC_LINE() (__LINE__)
+#define __SRC_FILE() (__FILE__)
+#define __STATIC_COUNT() (__COUNTER__)
+#define __COMPILE_DATE() (__DATE__)
+#define __COMPILE_TIME() (__TIME__)
+#define __SRC_LAST_EDIT() (__TIMESTAMP__)
+#ifdef QB64_WINDOWS
+#define __WIN32() (_WIN32)
+#define __WIN64() (_WIN64)
+#endif
+#define __INC_DEPTH() (__INCLUDE_LEVEL__)
+#define __BASE_FILE() (__BASE_FILE__)

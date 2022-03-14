@@ -1,0 +1,132 @@
+Function ComDlgFileName$ (__Title As String, InitialDir As String, Filter As String, FilterIndex As _Unsigned Long, Flags As _Unsigned Long)
+    Type OPENFILENAME
+        As _Unsigned Long lStructSize
+        $If 64BIT Then
+            As String * 4 padding
+        $End If
+        As _Offset hwndOwner, hInstance, lpstrFilter, lpstrCustomFilter
+        As _Unsigned Long nMaxCustFilter, nFilterIndex
+        As _Offset lpstrFile
+        As _Unsigned Long nMaxFile
+        $If 64BIT Then
+            As String * 4 padding2
+        $End If
+        As _Offset lpstrFile__Title
+        As _Unsigned Long nMaxFile__Title
+        $If 64BIT Then
+            As String * 4 padding3
+        $End If
+        As _Offset lpstrInitialDir, lpstr__Title
+        As _Unsigned Long Flags
+        As Integer nFileOffset, nFileExtension
+        As _Offset lpstrDefExt, lCustData, lpfnHook, lpTemplateName, pvReserved
+        As _Unsigned Long dwReserved, FlagsEx
+    End Type
+
+    Declare Dynamic Library "Comdlg32"
+        Sub GetSaveFileName Alias "GetSaveFileNameA" (ByVal ofn As _Offset)
+        Function GetOpenFileName& Alias "GetOpenFileNameA" (ByVal ofn As _Offset)
+    End Declare
+
+    $If 64BIT Then
+        Declare CustomType Library ".\internal\c\c_compiler\x86_64-w64-mingw32\include\tchar"
+            Function tcslen%& Alias "_tcslen" (ByVal str As _Offset)
+        End Declare
+    $Else
+        Declare CustomType Library ".\internal\c\c_compiler\i686-w64-mingw32\include\tchar"
+        Function tcslen%& Alias "_tcslen" (ByVal str As _Offset)
+        End Declare
+    $End If
+
+    Dim As OPENFILENAME ofn
+    Do
+        Mid$(Filter, InStr(Filter, "|")) = Chr$(0)
+    Loop While InStr(Filter, "|")
+
+    __Title = __Title + Chr$(0)
+    InitialDir = InitialDir + Chr$(0)
+    Filter = Filter + Chr$(0) + Chr$(0)
+    Dim As String * MAX_PATH oFile
+    ofn.lStructSize = Len(ofn)
+    ofn.hwndOwner = _WindowHandle
+    ofn.lpstrFilter = _Offset(Filter)
+    ofn.nFilterIndex = FilterIndex
+    ofn.nMaxFile = Len(oFile)
+    ofn.lpstrFile__Title = ofn.lpstrFile
+    ofn.nMaxFile__Title = ofn.nMaxFile
+    ofn.lpstrInitialDir = _Offset(InitialDir)
+    ofn.lpstr__Title = _Offset(__Title)
+    ofn.lpstrFile = _Offset(oFile)
+    If OPEN_DIALOG And Flags Or (SAVE_DIALOG And Flags) = 0 Then
+        If OFN_ALLOWMULTISELECT And Flags Then Flags = Flags Or OFN_EXPLORER
+        Flags = Flags Or OFN_HIDEREADONLY
+        ofn.Flags = Flags
+        If GetOpenFileName(_Offset(ofn)) <> 0 Then
+            If OFN_ALLOWMULTISELECT And Flags Then
+                Dim As String file, outfiles, directory
+                Dim As _Offset tmp: tmp = ofn.lpstrFile + ofn.nFileOffset
+                Dim As _MEM pFiles: pFiles = _Mem(tmp, tcslen(tmp))
+                Dim As _MEM dir: dir = _Mem(ofn.lpstrFile, tcslen(ofn.lpstrFile))
+                directory = Space$(tcslen(ofn.lpstrFile))
+                _MemGet dir, dir.OFFSET, directory
+                _MemFree dir
+                Dim As Long i
+                While tcslen(tmp)
+                    file = Space$(tcslen(tmp))
+                    _MemGet pFiles, pFiles.OFFSET, file
+                    Select Case i
+                        Case 0
+                            outfiles = directory + "\" + file
+                        Case Else
+                            outfiles = outfiles + "|" + directory + "\" + file
+                    End Select
+                    i = i + 1
+                    tmp = tmp + (tcslen(tmp) + 1)
+                    pFiles = _Mem(tmp, tcslen(tmp))
+                Wend
+                _MemFree pFiles
+                If i = 1 Then
+                    file = directory
+                    ComDlgFileName = file
+                Else
+                    ComDlgFileName = outfiles
+                End If
+            Else
+                ComDlgFileName = Mid$(oFile, 1, InStr(oFile, Chr$(0)) - 1)
+            End If
+        End If
+    ElseIf SAVE_DIALOG And Flags Then
+        ofn.Flags = Flags
+        Dim As String defaultExt: defaultExt = DEFEXT
+        ofn.lpstrDefExt = _Offset(defaultExt)
+        GetSaveFileName _Offset(ofn)
+        ComDlgFileName = Mid$(oFile, 1, InStr(oFile, Chr$(0)) - 1)
+    End If
+End Function
+
+Function SelectFolder$ (__Title As String)
+    Type BROWSEINFO
+        As _Offset hwndOwner, pidlRoot, pszDisplayName, lpsz__Title
+        As _Unsigned Long ulFlags
+        As _Offset lpfn, lParam
+        As Long iImage
+    End Type
+    Declare Dynamic Library "Shell32"
+        Function SHBrowseForFolder%& (ByVal lpbi As _Offset)
+        Function SHGetPathFromIDList%% (ByVal lpItem As _Offset, Byval szDir As _Offset)
+    End Declare
+    Dim As BROWSEINFO browse
+    Dim As String * MAX_PATH folder
+    __Title = __Title + Chr$(0)
+    browse.hwndOwner = _WindowHandle
+    browse.pszDisplayName = _Offset(folder)
+    browse.lpsz__Title = _Offset(__Title)
+    Dim As _Offset pfolder
+    pfolder = SHBrowseForFolder(_Offset(browse))
+    If pfolder Then
+        Dim As String * MAX_PATH resolvedPath
+        If SHGetPathFromIDList(pfolder, _Offset(resolvedPath)) Then
+            SelectFolder = Mid$(resolvedPath, 1, InStr(resolvedPath, Chr$(0)) - 1)
+        End If
+    End If
+End Function

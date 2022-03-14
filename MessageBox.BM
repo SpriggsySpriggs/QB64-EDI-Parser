@@ -1,0 +1,155 @@
+'ON ERROR GOTO ERRHANDLE
+'ERRHANDLE:
+'IF ERR THEN
+'    IF _INCLERRORLINE THEN
+'        CriticalError ERR, _INCLERRORLINE, _INCLERRORFILE$
+'        RESUME NEXT
+'    ELSE
+'        CriticalError ERR, _ERRORLINE, ""
+'        RESUME NEXT
+'    END IF
+'END IF
+$If MESSAGEBOX = UNDEFINED Then
+    Declare Library
+        Function MessageBox& (ByVal hWnd As _Offset, message As String, title As String, Byval uType As _Unsigned Long)
+    End Declare
+    $Let MESSAGEBOX = TRUE
+$End If
+
+Declare Library ".\preproc"
+    Function __FUNCTION_NAME$ ()
+    Function __FUNCTION_NAME_FULL$ ()
+End Declare
+
+Sub SoftError (__title As String, message As String)
+    Const MB_OK = 0 'OK button only
+    Const MB_YESNO = 4 'Yes & No
+    Const MB_ICONSTOP = 16 'Error stop sign icon
+    Const MB_ICONEXCLAMATION = 48 'Exclamation-point icon
+    Const MB_SETFOCUS = 65536 'Set message box as focus
+    Const IDOK = 1 'OK button pressed
+    Const IDYES = 6 'Yes button pressed
+    Const IDNO = 7 'No button pressed
+
+    Dim As Long Answer
+    Answer = MessageBox(0, message + Chr$(0), __title + Chr$(0), MB_OK Or MB_SETFOCUS Or MB_ICONEXCLAMATION)
+End Sub
+
+Sub CriticalError (ERRR, ERRLINE, INCL As String)
+    Const MB_OK = 0 'OK button only
+    Const MB_YESNO = 4 'Yes & No
+    Const MB_ICONSTOP = 16 'Error stop sign icon
+    Const MB_ICONEXCLAMATION = 48 'Exclamation-point icon
+    Const MB_SETFOCUS = 65536 'Set message box as focus
+    Const IDOK = 1 'OK button pressed
+    Const IDYES = 6 'Yes button pressed
+    Const IDNO = 7 'No button pressed
+
+    Dim As String message
+    message = "The program ran into a problem that it couldn't handle." + Chr$(10) + "Error Code: " + LTrim$(Str$(ERRR)) + Chr$(10) + Chr$(10) + _ErrorMessage$ + " on line " + LTrim$(Str$(ERRLINE))
+    If INCL <> "" Then
+        message = message + " in " + INCL
+    Else
+        message = message + " in main module"
+    End If
+    message = message + Chr$(10) + "For more information about this issue and possible fixes, visit https://www.qb64.org/forum" + Chr$(10) + "Continue?"
+    Dim Answer As Long
+    Answer = MessageBox(0, message + Chr$(0), "Error: " + LTrim$(Str$(ERRR)) + Chr$(0), MB_YESNO Or MB_SETFOCUS Or MB_ICONSTOP)
+    Select Case Answer
+        Case IDYES
+            Exit Sub
+        Case IDNO
+            System
+    End Select
+End Sub
+
+Sub CriticalErrorWinAPI (additionalInfo As String)
+    Const MB_OK = 0 'OK button only
+    Const MB_YESNO = 4 'Yes & No
+    Const MB_ICONSTOP = 16 'Error stop sign icon
+    Const MB_ICONEXCLAMATION = 48 'Exclamation-point icon
+    Const MB_SETFOCUS = 65536 'Set message box as focus
+    Const IDOK = 1 'OK button pressed
+    Const IDYES = 6 'Yes button pressed
+    Const IDNO = 7 'No button pressed
+
+    Const FORMAT_MESSAGE_ALLOCATE_BUFFER = &H00000100
+    Const FORMAT_MESSAGE_FROM_SYSTEM = &H00001000
+    Const FORMAT_MESSAGE_IGNORE_INSERTS = &H00000200
+    Const LANG_NEUTRAL = &H00
+    Const SUBLANG_DEFAULT = &H01
+    $If GETLASTERROR = UNDEFINED Then
+        Declare Library
+            Function GetLastError~& ()
+        End Declare
+        $Let GETLASTERROR = TRUE
+    $End If
+    Declare CustomType Library
+        Sub FormatMessage (ByVal dwFlags As Long, Byval lpSource As Long, Byval dwMessageId As Long, Byval dwLanguageId As Long, Byval lpBuffer As _Offset, Byval nSize As Long, Byval Arguments As _Offset)
+    End Declare
+    Declare Library
+        Function MAKELANGID& (ByVal p As Long, Byval s As Long)
+    End Declare
+    Dim As String message, ERRMSG
+    Dim As _Offset lpMsgBuf
+    Dim As Long Answer
+    Dim As _Unsigned Long ERRR
+    ERRR = GetLastError
+    FormatMessage FORMAT_MESSAGE_ALLOCATE_BUFFER Or FORMAT_MESSAGE_FROM_SYSTEM Or FORMAT_MESSAGE_IGNORE_INSERTS, 0, ERRR, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), _Offset(lpMsgBuf), 0, 0
+    ERRMSG = pointerToString(lpMsgBuf)
+    If additionalInfo <> "" Then
+        message = "The program ran into a problem in function " + additionalInfo + Chr$(10)
+    Else
+        message = "The program ran into a problem that it couldn't handle." + Chr$(10)
+    End If
+    message = message + "Error Code: " + LTrim$(Str$(ERRR)) + Chr$(10) + Chr$(10) + ERRMSG + Chr$(10) + "For more information about this issue and possible fixes, visit https://docs.microsoft.com/en-us/windows/win32/debug/system-error-codes"
+    Select Case ERRR
+        Case 0
+            Exit Sub
+        Case 1 TO 499
+            message = message + "--0-499-"
+        Case 500 TO 999
+            message = message + "--500-999-"
+        Case 1000 TO 1299
+            message = message + "--1000-1299-"
+        Case 1300 TO 1699
+            message = message + "--1300-1699-"
+        Case 1700 TO 3999
+            message = message + "--1700-3999-"
+        Case 4000 TO 5999
+            message = message + "--4000-5999-"
+        Case 6000 TO 8199
+            message = message + "--6000-8199-"
+        Case 8200 TO 8999
+            message = message + "--8200-8999-"
+        Case 9000 TO 11999
+            message = message + "--9000-11999-"
+        Case 12000 TO 15999
+            message = message + "--12000-15999-"
+    End Select
+    message = message + Chr$(10) + Chr$(10) + "Continue?"
+    Answer = MessageBox(0, message + Chr$(0), "Error: " + LTrim$(Str$(ERRR)) + Chr$(0), MB_YESNO Or MB_SETFOCUS Or MB_ICONSTOP)
+    Select Case Answer
+        Case IDYES
+            Exit Sub
+        Case IDNO
+            System
+    End Select
+End Sub
+
+$If PTRTOSTRING = UNDEFINED Then
+    $Let PTRTOSTRING = TRUE
+    Function pointerToString$ (pointer As _Offset)
+        Declare CustomType Library
+            Function strlen%& (ByVal ptr As _Unsigned _Offset)
+        End Declare
+        Dim As _Offset length: length = strlen(pointer)
+        If length Then
+            Dim As _MEM pString: pString = _Mem(pointer, length)
+            Dim As String ret: ret = Space$(length)
+            _MemGet pString, pString.OFFSET, ret
+            _MemFree pString
+        End If
+        pointerToString = ret
+    End Function
+$End If
